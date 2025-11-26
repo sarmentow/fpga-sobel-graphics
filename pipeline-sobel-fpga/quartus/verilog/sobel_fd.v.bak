@@ -1,0 +1,55 @@
+module sobel_fd(
+	input clock,
+	input reset,
+	
+	input tx_partida,
+	output tx_saida_serial,
+	output tx_pronto,
+	// sinais de depuracao
+	output tx_db_saida_serial,	
+	output [6:0] tx_db_estado,
+	
+	input rx_serial,
+	// sinais de depuracao
+	output [7:0] rx_db_dados_ascii,
+	output rx_db_estado
+);
+	
+	// vai ligar o sobel_processing_unit ao tx
+	reg [7:0] dados_guardados_rx;	
+	wire [7:0] rx_dados_ascii;
+	wire rx_pronto;
+	
+	tx_serial_8N1 tx(
+    .clock(clock),
+    .reset(reset),
+    .partida(tx_partida),
+    .dados_ascii(dados_guardados_rx), // entradas
+	 
+    .saida_serial(tx_saida_serial), // saidas
+    .pronto(tx_pronto),
+    .db_clock(), // saidas de depuracao
+    .db_tick(),
+    .db_partida(),
+    .db_saida_serial(tx_db_saida_serial),
+    .db_estado(tx_db_estado)
+	);
+	
+	
+	rx_serial_8N1 rx(
+    .clock(clock),
+    .reset(reset),
+    .RX(rx_serial),
+    .pronto(rx_pronto),
+    .dados_ascii(rx_dados_ascii),
+    .db_clock(), // saidas de depuracao
+    .db_tick(),
+    .db_dados(), // dados ascii tambem serao exibidos nos displays
+    .db_estado(rx_db_estado)
+	);
+	
+	always @ (posedge rx_pronto) begin
+		dados_guardados_rx = rx_dados_ascii;
+	end
+	
+endmodule

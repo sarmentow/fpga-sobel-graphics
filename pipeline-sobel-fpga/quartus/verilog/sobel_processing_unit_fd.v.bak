@@ -1,0 +1,12 @@
+//module sobel_processing_unit(
+//	input incrementa_framebuffer,
+//	output [] framebuffer_dado,
+//);
+//	// parametrizar o tamanho dos contadores e o limite para termos o fim_imagem_recebe
+//	// e o pronto_sobel
+//	
+//	// 2 pares de contadores (X, y), 1 para acompanhar a escrita/leitura do cru
+//	// e um para acompanhar a escrita/leitura do sobel.
+//	
+//	// 2 matrizes de registradores
+//endmodule

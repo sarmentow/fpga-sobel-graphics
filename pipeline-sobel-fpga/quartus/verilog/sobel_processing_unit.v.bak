@@ -1,0 +1,21 @@
+//module sobel_processing_unit(
+//	input rx_pronto,
+//	input [7:0] rx_dados,
+//	input tx_pronto,
+//	output [6:0] tx_dados,
+//	
+//);
+//	// esse fio de alguma forma receberá o dado a ser transmitido
+//	// para o cenário mais simples de todos a gente faz uma simples
+//	// extração dos dados do formato 7N1 para 7E1
+//	// assign tx_dados_ascii = rx_dados_ascii[6:0]; ou algo assim 
+//	// (só remover o bit de paridade)
+//	reg [6:0] rx_dados_ascii_stored;
+//
+//	always @ (posedge rx_pronto) begin
+//		rx_dados_ascii_stored = rx_dados_ascii[6:0];
+//	end
+//	
+//	sobel_processing_unit_fd fd();
+//	sobel_processing_unit_uc uc();
+//endmodule

@@ -1,0 +1,21 @@
+module sobel(
+	input clock,
+	input reset,
+	
+	input [6:0] tx_dados_ascii,
+	output tx_saida_serial,
+	output tx_pronto,
+	// sinais de depuracao
+	output tx_db_saida_serial,	
+	output [6:0] tx_db_estado,
+	
+	input rx_serial,
+	output rx_pronto,
+	// sinais de depuracao
+	output [7:0] rx_dados_ascii,
+	output rx_db_estado
+);
+	sobel_uc uc();
+	
+	sobel_fd fd();
+endmodule
