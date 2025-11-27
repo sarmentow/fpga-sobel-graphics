@@ -32,6 +32,7 @@ module sobel_fd(
 	assign rx_pronto_out = rx_pronto;
 	assign rx_db_dados_ascii = rx_dados_ascii;
 	assign tx_db_dado = tx_dados;
+	assign rx_serial_in = rx_enable ? rx_serial : 1'b1;
 	
 	tx_serial_8N1 tx(
     .clock(clock),
@@ -56,6 +57,8 @@ module sobel_fd(
 		.rx_pronto(rx_pronto),
 		.tx_pronto(tx_pronto),
 		.calcula(sobel_calcula),
+		.tx_enable(tx_enable),
+		
 		.fim_imagem(sobel_fim_imagem),
 		.tx_dados(tx_dados)
 	); 
@@ -63,7 +66,7 @@ module sobel_fd(
 	rx_serial_8N1 rx(
     .clock(clock),
     .reset(reset),
-    .RX(rx_serial),
+    .RX(rx_serial_in),
     .pronto(rx_pronto),
     .dados_ascii(rx_dados_ascii),
     .db_clock(), // saidas de depuracao

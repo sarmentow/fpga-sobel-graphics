@@ -16,10 +16,11 @@ module sobel(
 	wire tx_partida;
 	wire tx_enable, rx_enable;
 	wire [7:0] db_rx_dado, db_tx_dado;
+	wire reset_uc;
 		
 	sobel_fd fd(
 		.clock(clock),
-		.reset(reset),
+		.reset(reset | reset_uc),
 		.rx_serial(rx_serial),
 		.rx_enable(rx_enable),
 		.rx_pronto_out(rx_pronto),
@@ -46,6 +47,7 @@ module sobel(
 		.rx_pronto(rx_pronto),
 		.rx_enable(rx_enable),
 		.tx_enable(tx_enable),
+		.clean_framebuffer_counters(reset_uc),
 		.db_estado(db_estado)
 	);
 	

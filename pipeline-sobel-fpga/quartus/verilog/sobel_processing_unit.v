@@ -5,6 +5,7 @@ module sobel_processing_unit(
 		input rx_pronto,
 		input tx_pronto,
 		input calcula,
+		input tx_enable,
 		output fim_imagem,
 		output [7:0] tx_dados
 );	
@@ -13,6 +14,7 @@ module sobel_processing_unit(
 		.reset(reset),
 		.rx_dados(rx_dados),
 		.rx_pronto(rx_pronto),
+		.tx_enable(tx_enable),
 		.tx_pronto(tx_pronto),
 		.calcula(calcula),
 		.fim_imagem(fim_imagem),

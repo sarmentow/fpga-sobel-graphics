@@ -62,13 +62,75 @@ module tb_sobel;
         uart_send_byte(8'h3);
         
         uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+// -- IMAGEM 2
+
+        #(1000)
+
+
+                uart_send_byte(8'h1);
+        
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+		  
+		  uart_send_byte(8'h1);
+  
+        uart_send_byte(8'h2);
+        
+        uart_send_byte(8'h3);
+        
+        uart_send_byte(8'h4);
+
+        #(1000)
 
         $display("[Info] All data sent. Waiting for processing and response...");
 
         // 4. Wait for processing and response
         // The UC should automatically detect end of image, calculate, and TX back.
         // We wait enough time for 4 bytes to be received back + calculation time.
-        #(BIT_PERIOD * 10 * 6); 
+        #(BIT_PERIOD * 50 * 6); 
 
         $display("=== Simulation End ===");
         $stop;

@@ -1,13 +1,13 @@
 `timescale 1ns / 1ps
 
-// -------------------------------------------------------------------------
-// Main Testbench
-// -------------------------------------------------------------------------
 module tb_sobel_processing_unit_fd;
 
-    // Parameters matches the DUT default or override
-    parameter HEIGHT = 2;
-    parameter WIDTH = 4;
+    // -------------------------------------------------------------------------
+    // Parâmetros (Aumentados para 4x4 para permitir kernel 3x3)
+    // -------------------------------------------------------------------------
+    parameter HEIGHT = 4;
+    parameter WIDTH  = 4;
+    parameter TOTAL_PIXELS = HEIGHT * WIDTH;
 
     // Inputs
     reg clock;
@@ -21,10 +21,10 @@ module tb_sobel_processing_unit_fd;
     wire fim_imagem;
     wire [7:0] tx_dados;
 
-    // Internal loop variable
+    // Variáveis de teste
     integer i;
 
-    // Instantiate the Unit Under Test (UUT)
+    // Instância do DUT (Device Under Test)
     sobel_processing_unit_fd #(
         .HEIGHT(HEIGHT), 
         .WIDTH(WIDTH)
@@ -39,12 +39,11 @@ module tb_sobel_processing_unit_fd;
         .tx_dados(tx_dados)
     );
 
-    // Clock Generation (10ns period)
+    // Geração de Clock (100MHz - período 10ns)
     always #5 clock = ~clock;
 
-    // Test Procedure
     initial begin
-        // 1. Initialize Inputs
+        // Inicialização
         clock = 0;
         reset = 1;
         rx_dados = 0;
@@ -52,114 +51,129 @@ module tb_sobel_processing_unit_fd;
         tx_pronto = 0;
         calcula = 0;
 
-        // Wait for global reset
+        // Reset Global
         #20;
         reset = 0;
         #10;
 
-        $display("=== Starting Simulation ===");
-        $display("Config: HEIGHT=%d, WIDTH=%d", HEIGHT, WIDTH);
-        // Note: WIDTH=4 means 2 bytes per row (since 2 pixels per byte).
-        // Total bytes to send = (WIDTH/2) * HEIGHT = 2 * 2 = 4 bytes.
+        $display("=== INICIO DA SIMULACAO (Sobel 3x3) ===");
+        $display("Config: %dx%d (%d pixels)", WIDTH, HEIGHT, TOTAL_PIXELS);
 
         // ------------------------------------------------------------
-        // PHASE 1: LOAD IMAGE (RX)
+        // FASE 1: CARREGAR IMAGEM (RX)
         // ------------------------------------------------------------
-        $display("\n[Phase 1] Loading Data via rx_dados...");
+        // Padrão de Teste: "Caixa"
+        // 00 00 00 00  (Linha 0 - Borda Preta)
+        // 00 FF FF 00  (Linha 1 - Miolo Branco)
+        // 00 FF FF 00  (Linha 2 - Miolo Branco)
+        // 00 00 00 00  (Linha 3 - Borda Preta)
         
-        // We will send patterns: 8'hA5, 8'h12, 8'hF0, 8'h0F
-        // Sequence should wrap naturally: (0,0) -> (0,1) -> (1,0) -> (1,1) -> Wrap to (0,0)
+        $display("\n[Fase 1] Carregando Imagem...");
         
-        send_byte(8'hA5); // 1010 0101 (Step 1)
-        send_byte(8'h12); // 0001 0010 (Step 2)
-        send_byte(8'hF0); // 1111 0000 (Step 3)
-        
-        // After sending 3 bytes, we are at the last position. 
-        // We check if fim_imagem goes high during the 4th byte write indicating end of frame.
-        send_byte(8'h0F); // 0000 1111 (Step 4 - Should wrap counter after this)
+        // Linha 0
+        send_byte(8'h00); send_byte(8'h00); send_byte(8'h00); send_byte(8'h00);
+        // Linha 1
+        send_byte(8'h00); send_byte(8'hFF); send_byte(8'hFF); send_byte(8'h00);
+        // Linha 2
+        send_byte(8'h00); send_byte(8'hFF); send_byte(8'hFF); send_byte(8'h00);
+        // Linha 3
+        send_byte(8'h00); send_byte(8'h00); send_byte(8'h00); send_byte(8'h00);
 
-        // Note: fim_imagem depends on the current counter state. 
-        // If logic is correct, it might pulse high during the last step.
-        // Since we are relying on wrap-around, we proceed directly.
-        $display("-> Loading complete. Counters should be wrapped to 0.");
+        $display("-> Carga completa.");
 
         // ------------------------------------------------------------
-        // PHASE 2: CALCULATE (Invert Data)
+        // FASE 2: PROCESSAMENTO (SOBEL)
         // ------------------------------------------------------------
-        $display("\n[Phase 2] Calculating (Inverting Bits)...");
+        $display("\n[Fase 2] Calculando Sobel...");
         
-        // We perform the calculation 4 times to traverse the whole image again.
-        // This will wrap the counters from (0,0) back to (0,0) by the end.
+        // Diferença Crucial: 'calcula' agora é um ENABLE. 
+        // Devemos mantê-lo alto enquanto o kernel processa a imagem inteira.
+        // O Kernel precisa ler todos os pixels para terminar.
         
         calcula = 1;
-        
-        for (i = 0; i < 4; i = i + 1) begin
-            // Wait one clock cycle per address to allow write & counter increment
-            @(posedge clock);
-            #1; // wait past hold time
-        end
+
+        // Esperamos tempo suficiente para ler todos os pixels + latência do pipeline
+        // Latência aprox: 2 linhas + overhead. Vamos esperar 3x o tempo de pixel para garantir.
+        repeat (TOTAL_PIXELS * 3) @(posedge clock);
         
         calcula = 0;
-        $display("-> Calculation loop finished. Counters should be wrapped to 0.");
+        $display("-> Calculo finalizado (estimado pelo tempo).");
 
         // ------------------------------------------------------------
-        // PHASE 3: READ RESULTS (TX)
+        // FASE 3: VERIFICAR RESULTADOS (TX)
         // ------------------------------------------------------------
-        $display("\n[Phase 3] Reading Results...");
+        $display("\n[Fase 3] Lendo Resultados...");
+
+        // Lógica de verificação:
+        // Bordas (Linha 0, 3 e Coluna 0, 3) -> DEVEM ser 0 (Kernel força zero na borda).
+        // Miolo (1,1), (1,2), (2,1), (2,2) -> DEVEM detectar a variação 00->FF.
         
-        // Check 1: Input A5 (1010 0101) -> Expect 5A (0101 1010)
-        verify_output(8'h5A); 
-        
-        // Check 2: Input 12 (0001 0010) -> Expect ED (1110 1101)
-        verify_output(8'hED);
+        // Linha 0 (Borda Superior) - Tudo 0
+        verify_output(8'h00); verify_output(8'h00); verify_output(8'h00); verify_output(8'h00);
 
-        // Check 3: Input F0 (1111 0000) -> Expect 0F (0000 1111)
-        verify_output(8'h0F);
+        // Linha 1
+        // (1,0) Borda Esq -> 0
+        verify_output(8'h00); 
+        // (1,1) Vizinhos: Esq=00, Dir=FF, Baixo=FF. Gradiente Alto -> 255 (FF)
+        verify_output(8'hFF); 
+        // (1,2) Vizinhos: Esq=FF, Dir=00. Gradiente Alto -> 255 (FF)
+        verify_output(8'hFF); 
+        // (1,3) Borda Dir -> 0
+        verify_output(8'h00);
 
-        // Check 4: Input 0F (0000 1111) -> Expect F0 (1111 0000)
-        verify_output(8'hF0);
+        // Linha 2
+        // (2,0) Borda Esq -> 0
+        verify_output(8'h00); 
+        // (2,1) Gradiente Alto -> 255 (FF)
+        verify_output(8'hFF); 
+        // (2,2) Gradiente Alto -> 255 (FF)
+        verify_output(8'hFF); 
+        // (2,3) Borda Dir -> 0
+        verify_output(8'h00);
 
-        $display("\n=== Simulation Complete ===");
+        // Linha 3 (Borda Inferior) - Tudo 0
+        verify_output(8'h00); verify_output(8'h00); verify_output(8'h00); verify_output(8'h00);
+
+        $display("\n=== Simulacao Completa com Sucesso ===");
         $finish;
     end
 
-    // Task to send a byte
+    // Tarefa auxiliar para enviar bytes (RX Protocol)
     task send_byte;
         input [7:0] data;
         begin
-            @(negedge clock); // Setup data before clock edge
+            @(negedge clock);
             rx_dados = data;
             rx_pronto = 1;
-            @(posedge clock); // Wait for write logic
-            #1; // Hold slightly past edge
-            // Check for End of Image signal on the last byte (optional verification)
-            if (fim_imagem) $display("   [Info] fim_imagem asserted at data %h", data);
-            
+            @(posedge clock); 
+            #1; // Hold time
             rx_pronto = 0;
-            #9; 
+            @(posedge clock); // Wait for recovery
         end
     endtask
 
-    // Task to verify output and advance tx
+    // Tarefa auxiliar para verificar e ler bytes (TX Protocol)
     task verify_output;
         input [7:0] expected;
         begin
-            // 1. Wait for data to be stable at the output (registered output)
-            // The logic outputs tx_dados based on current pointers.
-            @(negedge clock); 
+            // O dado já deve estar disponível na saída do buffer
+            @(negedge clock);
             
             if (tx_dados !== expected) begin
-                $display("FAIL: Time %t | Expected %h, Got %h", $time, expected, tx_dados);
+                $display("[ERRO] Pixel %0d: Esperado %h, Recebido %h", i, expected, tx_dados);
             end else begin
-                $display("PASS: Time %t | Got %h", $time, tx_dados);
+                //$display("[OK] Pixel %0d: %h", i, tx_dados);
             end
 
-            // 2. Acknowledge read to advance counter
+            // Pulsa tx_pronto para avançar o ponteiro de leitura do buffer
             tx_pronto = 1;
-            @(posedge clock); 
+            @(posedge clock);
             #1;
             tx_pronto = 0;
-            #9;
+            // Pequeno delay para a memória atualizar o dado de saída
+            @(posedge clock);
+            
+            i = i + 1; // Contador auxiliar de debug
         end
     endtask
 
