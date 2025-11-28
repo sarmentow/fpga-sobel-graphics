@@ -32,19 +32,19 @@ function App() {
               onClick={() => setCurrentView('record')}
               showDot
             >
-              Record
+              Gravar
             </NavButton>
             <NavButton
               active={currentView === 'sessions'}
               onClick={() => setCurrentView('sessions')}
             >
-              Sessions
+              Sessões
             </NavButton>
             <NavButton
               active={currentView === 'playback'}
               onClick={() => setCurrentView('playback')}
             >
-              Playback
+              Reproduzir
             </NavButton>
           </div>
         </div>
@@ -83,4 +83,3 @@ function NavButton({ children, active, onClick, showDot }) {
 }
 
 export default App;
-

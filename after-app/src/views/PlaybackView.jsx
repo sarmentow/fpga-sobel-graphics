@@ -114,7 +114,7 @@ function PlaybackView({ sessionName, onBack }) {
         i < 10 ? '-' : i < 13 ? 'T' : ':'
       ).slice(0, 19);
       const date = new Date(dateStr);
-      return isNaN(date.getTime()) ? name : date.toLocaleString();
+      return isNaN(date.getTime()) ? name : date.toLocaleString('pt-BR');
     } catch {
       return name;
     }
@@ -134,7 +134,7 @@ function PlaybackView({ sessionName, onBack }) {
         <div>
           <h2 className="text-xl font-medium">{formatDate(sessionName)}</h2>
           <p className="text-gray-500 text-sm">
-            {hasHeatmap ? 'Side-by-side comparison' : 'Heatmap processing not complete'}
+            {hasHeatmap ? 'Comparação lado a lado' : 'Processamento do mapa de calor não concluído'}
           </p>
         </div>
       </div>
@@ -156,7 +156,7 @@ function PlaybackView({ sessionName, onBack }) {
 
         <div className="bg-surface-800 rounded-lg overflow-hidden border border-surface-600">
           <div className="px-4 py-2 bg-surface-700 border-b border-surface-600">
-            <span className="text-sm text-gray-400">Movement Heatmap</span>
+            <span className="text-sm text-gray-400">Mapa de Calor</span>
           </div>
           {hasHeatmap ? (
             <video
@@ -165,7 +165,7 @@ function PlaybackView({ sessionName, onBack }) {
             />
           ) : (
             <div className="w-full aspect-video bg-black flex items-center justify-center">
-              <p className="text-gray-500 text-sm">Processing not complete</p>
+              <p className="text-gray-500 text-sm">Processamento não concluído</p>
             </div>
           )}
         </div>
@@ -221,18 +221,18 @@ function AnalyticsPanel({ analytics, currentTime }) {
 
   return (
     <div className="bg-surface-800 rounded-lg border border-surface-600 p-6">
-      <h3 className="text-lg font-medium mb-4 text-accent">Movement Analytics</h3>
+      <h3 className="text-lg font-medium mb-4 text-accent">Análise de Movimentos</h3>
       
       <div className="grid grid-cols-4 gap-4 mb-6">
-        <StatCard label="Duration" value={formatDuration(duration_seconds)} />
-        <StatCard label="Avg Intensity" value={intensity?.average?.toFixed(1) || '—'} />
+        <StatCard label="Duração" value={formatDuration(duration_seconds)} />
+        <StatCard label="Intensidade Média" value={intensity?.average?.toFixed(1) || '—'} />
         <StatCard 
-          label="Peak Intensity" 
+          label="Intensidade Máxima" 
           value={intensity?.peak?.toFixed(1) || '—'} 
-          subtext={intensity?.peak_time ? `@ ${formatDuration(intensity.peak_time)}` : null}
+          subtext={intensity?.peak_time ? `em ${formatDuration(intensity.peak_time)}` : null}
         />
         <StatCard 
-          label="Cycles Detected" 
+          label="Ciclos Detectados" 
           value={repetition?.cycle_count || 0}
           subtext={repetition?.cycles_per_minute ? `${repetition.cycles_per_minute}/min` : null}
         />
@@ -240,27 +240,27 @@ function AnalyticsPanel({ analytics, currentTime }) {
 
       <div className="grid grid-cols-3 gap-6">
         <div className="col-span-2">
-          <h4 className="text-sm text-gray-400 mb-2">Intensity Timeline</h4>
+          <h4 className="text-sm text-gray-400 mb-2">Linha do Tempo de Intensidade</h4>
           <IntensityGraph timeline={timeline} currentTime={currentTime} duration={duration_seconds} />
         </div>
         
         <div>
-          <h4 className="text-sm text-gray-400 mb-2">Hot Zones (Live)</h4>
+          <h4 className="text-sm text-gray-400 mb-2">Zonas de Calor (Ao Vivo)</h4>
           <HotZonesGrid zones={currentZones} />
           
           {repetition && (
             <div className="mt-4">
-              <h4 className="text-sm text-gray-400 mb-2">Repetition Analysis</h4>
+              <h4 className="text-sm text-gray-400 mb-2">Análise de Repetição</h4>
               <div className="space-y-2">
                 {repetition.dominant_frequency_hz && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Frequency</span>
+                    <span className="text-gray-500">Frequência</span>
                     <span>{repetition.dominant_frequency_hz.toFixed(2)} Hz</span>
                   </div>
                 )}
                 {repetition.rhythm_regularity !== null && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Regularity</span>
+                    <span className="text-gray-500">Regularidade</span>
                     <RegularityBadge value={repetition.rhythm_regularity} />
                   </div>
                 )}
@@ -285,7 +285,7 @@ function StatCard({ label, value, subtext }) {
 
 function IntensityGraph({ timeline, currentTime, duration }) {
   if (!timeline || timeline.length === 0) {
-    return <div className="h-32 bg-surface-700 rounded flex items-center justify-center text-gray-500 text-sm">No data</div>;
+    return <div className="h-32 bg-surface-700 rounded flex items-center justify-center text-gray-500 text-sm">Sem dados</div>;
   }
 
   const maxIntensity = Math.max(...timeline.map(p => p.intensity), 1);
@@ -365,13 +365,13 @@ function RegularityBadge({ value }) {
   
   let label, colorClass;
   if (value >= 0.7) {
-    label = 'High';
+    label = 'Alta';
     colorClass = 'bg-green-500/20 text-green-400';
   } else if (value >= 0.4) {
-    label = 'Medium';
+    label = 'Média';
     colorClass = 'bg-yellow-500/20 text-yellow-400';
   } else {
-    label = 'Low';
+    label = 'Baixa';
     colorClass = 'bg-red-500/20 text-red-400';
   }
 

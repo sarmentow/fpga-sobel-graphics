@@ -26,7 +26,7 @@ function RecordView({ onComplete }) {
         setCameraReady(true);
       } catch (err) {
         console.error('Camera access failed:', err);
-        setError('Camera access denied');
+        setError('Acesso à câmera negado');
       }
     }
     
@@ -93,7 +93,7 @@ function RecordView({ onComplete }) {
       onComplete();
     } catch (err) {
       console.error('Failed to save recording:', err);
-      setError('Failed to save recording: ' + err.message);
+      setError('Falha ao salvar gravação: ' + err.message);
     }
   };
 
@@ -106,8 +106,8 @@ function RecordView({ onComplete }) {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-xl font-medium mb-2">Record Session</h2>
-        <p className="text-gray-500 text-sm">Capture video for movement analysis</p>
+        <h2 className="text-xl font-medium mb-2">Gravar Sessão</h2>
+        <p className="text-gray-500 text-sm">Capture vídeo para análise de movimentos</p>
       </div>
 
       <div className="relative bg-surface-800 rounded-lg overflow-hidden aspect-video mb-6 border border-surface-600">
@@ -122,7 +122,7 @@ function RecordView({ onComplete }) {
         {!cameraReady && (
           <div className="absolute inset-0 flex items-center justify-center">
             <p className={error ? 'text-red-400' : 'text-gray-500'}>
-              {error || 'Camera initializing...'}
+              {error || 'Inicializando câmera...'}
             </p>
           </div>
         )}
@@ -131,7 +131,7 @@ function RecordView({ onComplete }) {
           <div className="absolute top-4 left-4">
             <span className="flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full text-sm">
               <span className="w-2 h-2 bg-white rounded-full animate-pulse" />
-              REC
+              GRAV
             </span>
           </div>
         )}
@@ -152,11 +152,11 @@ function RecordView({ onComplete }) {
             onClick={startRecording}
             disabled={!cameraReady}
           >
-            Start Recording
+            Iniciar Gravação
           </button>
         ) : (
           <button className="btn-secondary" onClick={stopRecording}>
-            Stop Recording
+            Parar Gravação
           </button>
         )}
       </div>
@@ -165,4 +165,3 @@ function RecordView({ onComplete }) {
 }
 
 export default RecordView;
-

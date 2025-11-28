@@ -24,7 +24,7 @@ function SessionsView({ onOpenPlayback }) {
         i < 10 ? '-' : i < 13 ? 'T' : ':'
       ).slice(0, 19);
       const date = new Date(dateStr);
-      return isNaN(date.getTime()) ? sessionName : date.toLocaleString();
+      return isNaN(date.getTime()) ? sessionName : date.toLocaleString('pt-BR');
     } catch {
       return sessionName;
     }
@@ -34,8 +34,8 @@ function SessionsView({ onOpenPlayback }) {
     <div className="max-w-4xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-medium mb-2">Sessions</h2>
-          <p className="text-gray-500 text-sm">View and manage recorded sessions</p>
+          <h2 className="text-xl font-medium mb-2">Sessões</h2>
+          <p className="text-gray-500 text-sm">Visualize e gerencie as sessões gravadas</p>
         </div>
         <button
           onClick={loadSessions}
@@ -59,7 +59,7 @@ function SessionsView({ onOpenPlayback }) {
         </div>
       ) : (
         <div className="text-center py-16">
-          <p className="text-gray-500">No sessions recorded yet</p>
+          <p className="text-gray-500">Nenhuma sessão gravada ainda</p>
         </div>
       )}
     </div>
@@ -75,11 +75,11 @@ function SessionCard({ name, job, displayName, onClick }) {
   }[job.status] || 'badge-pending';
 
   const statusText = {
-    pending: 'Pending',
-    processing: 'Processing',
-    done: 'Complete',
-    error: 'Error',
-  }[job.status] || 'Unknown';
+    pending: 'Pendente',
+    processing: 'Processando',
+    done: 'Concluído',
+    error: 'Erro',
+  }[job.status] || 'Desconhecido';
 
   const progress = job.total_frames > 0
     ? Math.round((job.processed_frames / job.total_frames) * 100)
@@ -99,7 +99,7 @@ function SessionCard({ name, job, displayName, onClick }) {
             <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {job.processed_frames} / {job.total_frames} frames ({progress}%)
+            {job.processed_frames} / {job.total_frames} quadros ({progress}%)
           </p>
         </>
       )}
@@ -121,4 +121,3 @@ function RefreshIcon() {
 }
 
 export default SessionsView;
-

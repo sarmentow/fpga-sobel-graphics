@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Movement Analyzer Worker
-Watches sessions folder, processes videos through Sobel + heatmap pipeline.
+Watches sessions folder, processes videos through FPGA Sobel + heatmap pipeline.
 Computes movement analytics for repetitive pattern detection.
 """
 
@@ -9,26 +9,124 @@ import os
 import sys
 import json
 import time
-import shutil
-import glob
+import serial
+import serial.tools.list_ports
+import threading
 import cv2
 import numpy as np
 from pathlib import Path
+from PIL import Image
 
 SCRIPT_DIR = Path(__file__).parent.absolute()
 SESSIONS_DIR = SCRIPT_DIR.parent / "sessions"
 POLL_INTERVAL = 5
 
 FPGA_WIDTH, FPGA_HEIGHT = 160, 120
-SERIAL_PORT = "/dev/ttyUSB1"
 BAUD_RATE = 115200
-USE_FPGA = False
+FPGA_TIMEOUT = 5.0
+
+
+def discover_serial_port():
+    """Auto-discover available serial port for FPGA."""
+    ports = serial.tools.list_ports.comports()
+    if not ports:
+        return None
+    for port in ports:
+        if 'USB' in port.device or 'ttyUSB' in port.device or 'ttyACM' in port.device:
+            return port.device
+    return ports[0].device
+
+
+class FPGATransceiver:
+    """Handles serial communication with the FPGA for Sobel filtering."""
+    
+    def __init__(self, port, baud=115200):
+        self.ser = serial.Serial(port, baud, timeout=0.1)
+        self.running = True
+        self.img_buffer = bytearray()
+        self.img_size = FPGA_WIDTH * FPGA_HEIGHT
+        self.lock = threading.Lock()
+        
+        self.thread = threading.Thread(target=self._listen, daemon=True)
+        self.thread.start()
+
+    def _listen(self):
+        while self.running:
+            try:
+                if self.ser.in_waiting:
+                    chunk = self.ser.read(self.ser.in_waiting)
+                    with self.lock:
+                        self.img_buffer.extend(chunk)
+            except Exception as e:
+                print(f"Serial error: {e}")
+                break
+            time.sleep(0.001)
+
+    def send_frame(self, frame_bytes):
+        """Send a frame to the FPGA."""
+        self.ser.write(frame_bytes)
+
+    def receive_frame(self, timeout=FPGA_TIMEOUT):
+        """Wait for a complete frame from the FPGA. Returns bytes or None on timeout."""
+        start = time.time()
+        while time.time() - start < timeout:
+            with self.lock:
+                if len(self.img_buffer) >= self.img_size:
+                    frame_data = bytes(self.img_buffer[:self.img_size])
+                    self.img_buffer = self.img_buffer[self.img_size:]
+                    return frame_data
+            time.sleep(0.01)
+        return None
+
+    def clear_buffer(self):
+        """Clear any pending data in the buffer."""
+        with self.lock:
+            self.img_buffer = bytearray()
+
+    def close(self):
+        self.running = False
+        self.thread.join(timeout=1.0)
+        self.ser.close()
 
 
 class JobProcessor:
     def __init__(self):
-        self.transceiver = None
+        self.fpga = None
+        self.serial_port = None
     
+    def connect_fpga(self):
+        """Connect to the FPGA. Raises exception on failure."""
+        if self.fpga is not None:
+            return
+        
+        self.serial_port = discover_serial_port()
+        if not self.serial_port:
+            raise RuntimeError("No serial ports found. Is the FPGA connected?")
+        
+        print(f"Connecting to FPGA on {self.serial_port}...")
+        self.fpga = FPGATransceiver(self.serial_port, BAUD_RATE)
+        self.fpga.clear_buffer()
+        print("FPGA connected.")
+
+    def disconnect_fpga(self):
+        """Disconnect from the FPGA."""
+        if self.fpga:
+            self.fpga.close()
+            self.fpga = None
+    
+    def frame_to_fpga_format(self, frame):
+        """Convert BGR frame to 160x120 grayscale bytes for FPGA."""
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, (FPGA_WIDTH, FPGA_HEIGHT))
+        return resized.tobytes()
+    
+    def fpga_response_to_frame(self, data, target_width, target_height):
+        """Convert FPGA response bytes to a frame at target resolution."""
+        small_frame = np.frombuffer(data, dtype=np.uint8).reshape((FPGA_HEIGHT, FPGA_WIDTH))
+        if target_width != FPGA_WIDTH or target_height != FPGA_HEIGHT:
+            return cv2.resize(small_frame, (target_width, target_height), interpolation=cv2.INTER_LINEAR)
+        return small_frame
+
     def get_video_info(self, video_path):
         """Get video dimensions and FPS. WebM from MediaRecorder often has bad metadata."""
         cap = cv2.VideoCapture(str(video_path))
@@ -145,7 +243,7 @@ class JobProcessor:
         return zone_percentages
     
     def process_session(self, session_path):
-        """Process a single session: Sobel filter + movement heatmap + analytics."""
+        """Process a single session: FPGA Sobel filter + movement heatmap + analytics."""
         session_name = session_path.name
         print(f"\n{'='*60}")
         print(f"Processing session: {session_name}")
@@ -160,8 +258,17 @@ class JobProcessor:
             self.update_job(session_path, status="error", error="Original video not found")
             return False
         
+        try:
+            self.connect_fpga()
+        except Exception as e:
+            error_msg = f"FPGA connection failed: {e}"
+            print(f"Error: {error_msg}")
+            self.update_job(session_path, status="error", error=error_msg)
+            return False
+        
         width, height, fps, total_frames = self.get_video_info(original_video)
         print(f"Video: {width}x{height} @ {fps:.1f} FPS, {total_frames} frames")
+        print(f"FPGA processing at {FPGA_WIDTH}x{FPGA_HEIGHT}, upscaling back to {width}x{height}")
         
         self.update_job(session_path, 
                         status="processing", 
@@ -192,19 +299,30 @@ class JobProcessor:
         
         sample_interval = max(1, int(fps / 10))
         
-        print("Processing frames...")
+        print("Processing frames via FPGA...")
+        self.fpga.clear_buffer()
         
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
             
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            fpga_input = self.frame_to_fpga_format(frame)
+            self.fpga.send_frame(fpga_input)
             
-            sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
-            sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-            sobel = np.sqrt(sobel_x**2 + sobel_y**2)
-            sobel = np.uint8(np.clip(sobel, 0, 255))
+            fpga_response = self.fpga.receive_frame(timeout=FPGA_TIMEOUT)
+            
+            if fpga_response is None:
+                error_msg = f"FPGA timeout at frame {frame_idx}"
+                print(f"\nError: {error_msg}")
+                self.update_job(session_path, status="error", error=error_msg)
+                cap.release()
+                out.release()
+                if heatmap_video.exists():
+                    heatmap_video.unlink()
+                return False
+            
+            sobel = self.fpga_response_to_frame(fpga_response, width, height)
             
             if previous_sobel is not None:
                 delta = cv2.absdiff(sobel, previous_sobel).astype(np.float32)
@@ -238,7 +356,7 @@ class JobProcessor:
             
             frame_idx += 1
             
-            if frame_idx % 30 == 0:
+            if frame_idx % 10 == 0:
                 self.update_job(session_path, processed_frames=frame_idx)
                 progress = (frame_idx / total_frames) * 100 if total_frames > 0 else 0
                 print(f"  {frame_idx}/{total_frames} frames ({progress:.1f}%)")
@@ -264,6 +382,7 @@ class JobProcessor:
             'total_frames': frame_idx,
             'fps': round(fps, 2),
             'resolution': {'width': width, 'height': height},
+            'fpga_resolution': {'width': FPGA_WIDTH, 'height': FPGA_HEIGHT},
             'intensity': {
                 'average': round(avg_intensity, 2),
                 'peak': round(peak_intensity, 2),
@@ -328,9 +447,16 @@ def find_pending_jobs(sessions_dir):
 
 def main():
     print("=" * 60)
-    print("  Movement Analyzer Worker")
+    print("  Movement Analyzer Worker (FPGA)")
     print("=" * 60)
     print(f"Watching: {SESSIONS_DIR}")
+    
+    available_ports = [p.device for p in serial.tools.list_ports.comports()]
+    if available_ports:
+        print(f"Available ports: {', '.join(available_ports)}")
+    else:
+        print("Warning: No serial ports detected")
+    
     print(f"Press Ctrl+C to stop")
     print("=" * 60)
     
@@ -357,6 +483,8 @@ def main():
     
     except KeyboardInterrupt:
         print("\n\nWorker stopped.")
+    finally:
+        processor.disconnect_fpga()
 
 
 if __name__ == "__main__":
