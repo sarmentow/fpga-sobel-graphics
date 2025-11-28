@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Temp video files
+*.avi
+*.mp4
+
+# OS files
+.DS_Store
+

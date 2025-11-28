@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Temp files from video processing
+src/temp_capture.avi
+src/tx_frames_cache/
+src/rx_frames/
+src/processed_video.mp4
+
+# Quartus project files (keep .qar archives, ignore generated files)
+quartus/db/
+quartus/incremental_db/
+quartus/output_files/
+quartus/*.qws
+quartus/*.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
