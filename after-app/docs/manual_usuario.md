@@ -77,22 +77,9 @@ No painel lateral, o sistema apresenta os biomarcadores do movimento:
 
 ---
 
-## 6. Perguntas Frequentes
-
-**O sistema precisa de internet?**
-Não. Todo o processamento é feito localmente no computador e na unidade externa (FPGA) para garantir a privacidade total dos dados do paciente.
-
-**A luz do ambiente afeta o resultado?**
-Sim. Ambientes muito escuros podem dificultar a detecção de movimentos sutis. Prefira luz natural ou salas bem iluminadas.
-
-**Posso exportar o vídeo?**
-Os vídeos ficam salvos na pasta de sessões do computador e podem ser anexados a prontuários externos se necessário (consulte o suporte de TI para acesso aos arquivos brutos).
-
----
-
 ### Nota para a Equipe de TI/Suporte Técnico
 
 Se o software não iniciar ou apresentar erros de conexão:
-1.  Verifique se o **driver da FPGA** está corretamente instalado.
+1.  Verifique se a **FPGA** está corretamente programada.
 2.  Certifique-se de que o script `worker.py` (backend) está rodando em segundo plano antes de abrir a interface gráfica.
 3.  O sistema requer permissões de acesso à **Webcam** e portas **USB/Serial**.
