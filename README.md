@@ -154,6 +154,116 @@ Estas pastas existem para validar a ideia/efeito final antes do hardware:
 
 ---
 
+## Detalhes low-level por subprojeto (mapa interno)
+
+Esta seção descreve “o que cada bloco faz internamente” em um nível prático (entrypoints, I/O, contratos e arquivos centrais), para acelerar navegação do código.
+
+### `after-app/` — Electron + React (UI)
+
+- **Responsabilidade**: capturar sessão (webcam) e apresentar playback + métricas; persistir tudo em disco.
+- **Entrypoints**
+  - **Processo principal**: `after-app/main.js` (cria `BrowserWindow`, carrega `dist/index.html`).
+  - **Bridge (renderer ↔ filesystem)**: `after-app/preload.js` (expõe `window.api.*` via `contextBridge`).
+  - **UI React**: `after-app/src/main.jsx` → `after-app/src/App.jsx`.
+- **I/O (filesystem)**
+  - **Escrita**: `preload.js:createSession()` cria `sessions/<id>/original.webm` + `job.json`.
+  - **Leitura**: `listSessions()`, `readJob()`, `readAnalytics()`, `fileExists()`, `getSessionFile()`.
+- **Playback**
+  - `PlaybackView.jsx` usa `file://<path>` para apontar `<video src="...">` para arquivos locais.
+- **Observações de design**
+  - A UI **não fala com o worker por HTTP/IPC custom**; o acoplamento é via **arquivos** na pasta `sessions/`.
+
+### `after-app/python/` — `worker.py` (pipeline + analytics)
+
+- **Responsabilidade**: observar `after-app/sessions/`, processar `original.webm` e produzir `heatmap.webm` + `analytics.json` + atualizar `job.json`.
+- **Entrypoint**
+  - `after-app/python/worker.py` (função `main()`): loop de polling a cada `POLL_INTERVAL` segundos.
+- **Descoberta de jobs**
+  - `find_pending_jobs(SESSIONS_DIR)` procura sessões com `job.json.status == "pending"`.
+  - `update_job(session_path, **updates)` mantém `job.json` como “fonte da verdade” do progresso.
+- **Pipeline de frames (núcleo do sistema)**
+  - `get_video_info()` lida com WebM com metadados ruins (FPS/frame_count “suspeitos”).
+  - `frame_to_fpga_format(frame)`:
+    - converte BGR → grayscale
+    - resize para **160×120**
+    - serializa como bytes (19200 bytes por frame)
+  - Loop: **send frame → wait response → upsample → acumula heatmap → escreve frame no `heatmap.webm`**.
+- **Analytics**
+  - `compute_periodicity()` (FFT na timeline amostrada)
+  - `compute_rhythm_regularity()` (picos acima de percentil → regularidade)
+  - `compute_hot_zones()` (grade 3×3 e percentuais)
+- **Dependências**
+  - `after-app/python/requirements.txt`: `opencv-python`, `numpy`, `pyserial`, `Pillow`, `tqdm`.
+- **Modos de falha relevantes**
+  - Serial indisponível/ocupada, timeout de frame, `VideoWriter` não abre, `original.webm` ausente → `job.json.status="error"`.
+
+### `pipeline-sobel-fpga/quartus/` — Projeto Quartus + HDL (DE10‑Lite @ 50MHz)
+
+- **Projeto “final” arquivado**: `pipeline-sobel-fpga/quartus/sobel_2_g.qar`
+- **Top-level e blocos**
+  - `verilog/sobel.v`: top-level; instancia FD + UC e módulos de debug (7-seg).
+  - `verilog/sobel_uc.v`: **FSM** de alto nível:
+    - `recebe` (habilita RX) → `processa` (habilita cálculo) → `transmite` (habilita TX).
+  - `verilog/sobel_fd.v`: amarra UART RX/TX ao `sobel_processing_unit`.
+  - `verilog/sobel_processing_unit_fd.v`: datapath de buffers + kernel:
+    - `buffer_raw` (framebuffer entrada)
+    - `kernel_sobel` (processamento streaming)
+    - `buffer_sobel` (framebuffer saída)
+- **Contrato de dados (wire-level)**
+  - `rx_serial` → `rx_serial_8N1` → `rx_dados_ascii[7:0]` com `rx_pronto`
+  - `tx_dados[7:0]` + `tx_partida` → `tx_serial_8N1` → `tx_saida_serial`
+  - `fim_imagem` sinaliza fim do frame tanto na fase de recepção quanto na de transmissão/processamento.
+- **UART**
+  - RX: `verilog/rx_serial_8N1.v` (tick configurado para 115200)
+  - TX: `verilog/tx_serial_8N1.v` (tick configurado para 115200)
+- **Kernel Sobel (streaming)**
+  - `verilog/kernel_sobel.v`: janela 3×3 com **2 line buffers** + shift da janela.
+  - Implementa “flush” após o fim da leitura para cuspir os últimos pixels do pipeline.
+  - Borda da imagem é forçada a 0.
+- **Framebuffers**
+  - `verilog/framebuffer_sequencial.v`: memória interna indexada por contadores (coluna/linha) e `fim_imagem`.
+
+### `pipeline-sobel-fpga/src/` — Protótipos de transceiver (legado)
+
+- **Status**: protótipo/POC anterior ao `after-app/python/worker.py` (útil para testes de link serial e pipeline “frame-a-frame”).
+- **Entrypoint**
+  - `pipeline-sobel-fpga/src/main.py` com `--role duplex` para “PC → FPGA → PC”.
+- **Peças internas**
+  - `transceiver.py`: thread que lê serial e acumula bytes (`img_buffer`) até completar um frame (160×120).
+  - `img_utils.py`: resize→grayscale via PIL e salvar frames recebidos (`rx_frames/frame_XXXX.png`).
+  - `video_utils.py`: captura webcam e conversão frames↔vídeo (para testes manuais).
+
+### `pipeline-sobel-software-only/` — POC (Sobel em software)
+
+- **Objetivo**: validar visualmente o efeito Sobel sem FPGA.
+- **Entrypoint**
+  - `pipeline-sobel-software-only/main.py`
+- **Como funciona**
+  - Captura webcam, reduz para 160×120, aplica Sobel via OpenCV.
+  - Publica o resultado como câmera virtual via `pyvirtualcam`.
+
+### `video-feed-stub/` — POC (fonte sintética em v4l2loopback)
+
+- **Objetivo**: gerar um feed determinístico para testar consumidores (sem webcam/FPGA).
+- **Entrypoint**
+  - `video-feed-stub/main.py /dev/videoX`
+- **Como funciona**
+  - Gera uma forma em movimento, aplica Sobel e publica no device via `pyfakewebcam`.
+
+### `delta-visualization/` — Ferramenta (heatmap por delta temporal)
+
+- **Objetivo**: consumir um device de vídeo (sobel real ou stub) e visualizar um heatmap acumulado por delta (com decaimento).
+- **Entrypoint**
+  - `delta-visualization/main.py <device_index>`
+- **Como funciona**
+  - Lê frames, calcula `absdiff` com frame anterior, aplica decaimento e colormap; mostra lado-a-lado.
+
+### `fpga/` — placeholder
+
+- Atualmente vazio; pode ser usado no futuro para artefatos de build, pinouts, scripts de programação, etc.
+
+---
+
 ## Como ler o código (caminho recomendado)
 
 Se você quer entender o sistema em 20–40 minutos:
