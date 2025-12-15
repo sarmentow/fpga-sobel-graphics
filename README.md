@@ -72,12 +72,16 @@ Código de referência:
 - `after-app/python/worker.py`
 
 ### 3) Reprodução/Análise (UI ← disco)
+<img width="1558" height="717" alt="image" src="https://github.com/user-attachments/assets/4dfa6bc0-637f-4978-bb22-e88f11cae395" />
 
 1. A tela “Sessões” lê periodicamente `job.json` de cada sessão e mostra status/progresso.
 2. A tela “Reproduzir” abre:
    - `original.webm`
    - `heatmap.webm` (quando existir)
    - `analytics.json` (métricas e timeline)
+
+
+<img width="1558" height="717" alt="image" src="https://github.com/user-attachments/assets/dd0af2ca-d26f-4b3a-aff5-cdf9b9823701" />
 
 Código de referência:
 - `after-app/src/views/SessionsView.jsx`
